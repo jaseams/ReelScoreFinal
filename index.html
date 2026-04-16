@@ -95,7 +95,6 @@ input:focus,select:focus{outline:none;border-color:#7ec84a;box-shadow:0 0 0 2px 
 .spinner{width:28px;height:28px;border:3px solid #e0ddd5;border-top-color:#0a2a1a;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 1rem;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .wrap{padding:1.1rem 1.1rem 0;}
-.api-key-note{font-size:12px;color:#888;margin-top:.5rem;text-align:center;line-height:1.5;}
 </style>
 </head>
 <body>
@@ -115,55 +114,15 @@ const DB_KEY='reelscore_db_v1';
 
 let state={currentUser:null,currentGroupId:null,activeTab:'leaderboard',sortMode:'count',feedSort:'recent',photoDataUrl:null};
 let db={users:{},groups:{},catches:[]};
-let apiKey='';
 
-// ── API key setup ─────────────────────────────────────────────────────────────
-
-function getApiKey(){
-  return localStorage.getItem('rs-apikey')||'';
-}
-
-function saveApiKey(k){
-  localStorage.setItem('rs-apikey',k);
-  apiKey=k;
-}
-
-function renderApiKeySetup(){
-  document.getElementById('header-user').innerHTML='';
-  document.getElementById('main-area').innerHTML=`
-  <div class="wrap">
-    <div class="card" style="max-width:420px;margin:0 auto;">
-      <div style="text-align:center;margin-bottom:1rem;">
-        <div style="font-size:28px;margin-bottom:.5rem;">🎣</div>
-        <div style="font-family:'Playfair Display',serif;font-size:20px;color:#111;">Welcome to ReelScore</div>
-        <div style="font-size:13px;color:#888;margin-top:6px;line-height:1.5;">To sync data across all your devices and friends, enter your Anthropic API key below.</div>
-      </div>
-      <div class="form-group">
-        <label>Anthropic API key</label>
-        <input id="api-key-input" type="password" placeholder="sk-ant-..." autocomplete="off"/>
-      </div>
-      <div class="err" id="api-err"></div>
-      <button class="btn btn-primary" onclick="doSetApiKey()">Continue</button>
-      <div class="api-key-note">Your key is stored only in this browser and used only to sync your fishing data. Get a key at <a href="https://console.anthropic.com" target="_blank" style="color:#3b6d11;">console.anthropic.com</a></div>
-    </div>
-  </div>`;
-}
-
-async function doSetApiKey(){
-  const k=document.getElementById('api-key-input').value.trim();
-  if(!k.startsWith('sk-ant-')){document.getElementById('api-err').textContent='That doesn\'t look like a valid API key.';return;}
-  const btn=document.querySelector('#main-area .btn-primary');
-  btn.textContent='Connecting...';btn.disabled=true;
-  saveApiKey(k);
-  await loadDB();
-}
+// ── API (proxied via /api/anthropic) ─────────────────────────────────────────
 
 // ── Cloud DB via Anthropic API ────────────────────────────────────────────────
 
 async function apiCall(prompt){
-  const res=await fetch('https://api.anthropic.com/v1/messages',{
+  const res=await fetch('/api/anthropic',{
     method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       model:MODEL,
       max_tokens:4000,
@@ -187,8 +146,8 @@ async function loadDB(){
     if(result&&typeof result.users==='object')db=result;
   }catch(e){
     console.error('loadDB failed',e);
-    showToast('Connection error — check your API key');
-    renderApiKeySetup();
+    showToast('Connection error — check server config');
+    renderAuth();
     return;
   }
   restoreSession();
@@ -238,7 +197,6 @@ function showToast(msg){
 // ── Routing ───────────────────────────────────────────────────────────────────
 
 function render(){
-  if(!apiKey){renderApiKeySetup();return;}
   if(!state.currentUser){renderAuth();return;}
   if(!state.currentGroupId){renderGroupSelect();return;}
   renderApp();
@@ -645,8 +603,7 @@ function setFeedSort(m){state.feedSort=m;renderTabContent();}
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
-apiKey=getApiKey();
-if(apiKey){loadDB();}else{render();}
+loadDB();
 </script>
 </body>
 </html>
